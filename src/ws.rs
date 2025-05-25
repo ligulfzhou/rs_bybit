@@ -331,7 +331,6 @@ impl Stream {
         sender: mpsc::UnboundedSender<Timed<LinearTickerDataSnapshot>>,
     ) -> Result<(), BybitError> {
         let (tx, mut rx) = mpsc::unbounded_channel::<Timed<LinearTickerData>>();
-
         // Spawn the WebSocket task
         tokio::spawn({
             let self_arc = Arc::clone(&self);
@@ -342,14 +341,12 @@ impl Stream {
                         subs.iter().map(|s| s.as_str()).collect(),
                         Category::Linear,
                         tx,
-                        |ticker| -> Option<Timed<LinearTickerData>> {
-                            match &ticker.data {
-                                Ticker::Linear(linear) => Some(Timed {
-                                    time: ticker.ts,
-                                    data: linear.clone(),
-                                }),
-                                Ticker::Spot(_) => None,
-                            }
+                        |ticker| match &ticker.data {
+                            Ticker::Linear(linear) => Some(Timed {
+                                time: ticker.ts,
+                                data: linear.clone(),
+                            }),
+                            Ticker::Spot(_) => None,
                         },
                     )
                     .await
@@ -370,19 +367,25 @@ impl Stream {
                     };
                     // Store the snapshot and send it
                     snapshots.insert(symbol.clone(), timed_snapshot.clone());
-                    let _ = sender.send(timed_snapshot);
+                    sender
+                        .send(timed_snapshot)
+                        .map_err(|e| BybitError::ChannelSendError {
+                            underlying: e.to_string(),
+                        })?
                 }
                 LinearTickerData::Delta(delta) => {
                     let symbol = delta.symbol.clone();
-                    if let Some(acc) = snapshots.get_mut(&symbol) {
-                        let mut acc_ticker = acc.data.clone();
-                        acc_ticker.update(delta);
+                    if let Some(snapshot_timed) = snapshots.get_mut(&symbol) {
+                        let mut snapshot = snapshot_timed.data.clone();
+                        snapshot.update(delta);
                         let new = Timed {
-                            data: acc_ticker,
+                            data: snapshot,
                             time: ticker.time,
                         };
-                        *acc = new.clone();
-                        let _ = sender.send(new);
+                        *snapshot_timed = new.clone();
+                        sender.send(new).map_err(|e| BybitError::ChannelSendError {
+                            underlying: e.to_string(),
+                        })?
                     }
                     // If no snapshot exists for the symbol, skip the delta
                 }
