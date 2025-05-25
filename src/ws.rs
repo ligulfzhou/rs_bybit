@@ -1,10 +1,8 @@
 use crate::prelude::*;
 
-use async_stream::stream;
 use futures::{SinkExt, StreamExt};
 use log::trace;
 use std::collections::HashMap;
-use std::future::ready;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpStream;
@@ -362,43 +360,34 @@ impl Stream {
         let mut snapshots: HashMap<String, Timed<LinearTickerDataSnapshot>> = HashMap::new();
 
         // Process incoming messages
-        let delta_stream = stream! {
-            while let Some(ticker) = rx.recv().await {
-                match ticker.data {
-                    LinearTickerData::Snapshot(snapshot) => {
-                        let symbol = snapshot.symbol.clone(); // Assuming snapshot has a symbol field
-                        let timed_snapshot = Timed {
+        while let Some(ticker) = rx.recv().await {
+            match ticker.data {
+                LinearTickerData::Snapshot(snapshot) => {
+                    let symbol = snapshot.symbol.clone();
+                    let timed_snapshot = Timed {
+                        time: ticker.time,
+                        data: snapshot,
+                    };
+                    // Store the snapshot and send it
+                    snapshots.insert(symbol.clone(), timed_snapshot.clone());
+                    let _ = sender.send(timed_snapshot);
+                }
+                LinearTickerData::Delta(delta) => {
+                    let symbol = delta.symbol.clone();
+                    if let Some(acc) = snapshots.get_mut(&symbol) {
+                        let mut acc_ticker = acc.data.clone();
+                        acc_ticker.update(delta);
+                        let new = Timed {
+                            data: acc_ticker,
                             time: ticker.time,
-                            data: snapshot,
                         };
-                        // Store the snapshot and send it
-                        snapshots.insert(symbol.clone(), timed_snapshot.clone());
-                        let _ = sender.send(timed_snapshot);
+                        *acc = new.clone();
+                        let _ = sender.send(new);
                     }
-                    LinearTickerData::Delta(delta) => {
-                        let symbol = delta.symbol.clone(); // Assuming delta has a symbol field
-                        if let Some(acc) = snapshots.get_mut(&symbol) {
-                            let mut acc_ticker = acc.data.clone();
-                            acc_ticker.update(delta);
-                            let new = Timed {
-                                data: acc_ticker,
-                                time: ticker.time,
-                            };
-                            *acc = new.clone();
-                            let _ = sender.send(new);
-                        }
-                        // If no snapshot exists for the symbol, skip the delta
-                    }
+                    // If no snapshot exists for the symbol, skip the delta
                 }
             }
-        };
-
-        // Pin the stream and process it
-        let delta_stream = Box::pin(delta_stream);
-
-        delta_stream
-            .for_each(|_| async {}) // Consume the stream to keep it running
-            .await;
+        }
 
         Ok(())
     }
