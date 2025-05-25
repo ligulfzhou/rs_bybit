@@ -3,6 +3,7 @@ use crate::prelude::*;
 use async_stream::stream;
 use futures::{SinkExt, StreamExt};
 use log::trace;
+use std::collections::HashMap;
 use std::future::ready;
 use std::sync::Arc;
 use std::time::Instant;
@@ -310,12 +311,15 @@ impl Stream {
     /// to internally using `.scan` we you get `Timed<LinearTickerDataSnapshot>`,
     /// instead of `Timed<LinearTickerDataDelta>`.
     ///
+    /// If you provide multiple symbols, the `LinearTickerDataSnapshot` values
+    /// will be interleaved.
+    ///
     /// # Usage
     /// ```
     /// let ws: Arc<Stream> = Arc::new(Bybit::new(None, None));
     /// let (tx, mut rx) = mpsc::unbounded_channel::<Timed<LinearTickerDataSnapshot>>();
     /// tokio::spawn(async move {
-    ///     ws.ws_timed_linear_tickers(vec!["BTCUSDT".to_owned()], tx)
+    ///     ws.ws_timed_linear_tickers(vec!["BTCUSDT".to_owned(), "ETHUSDT".to_owned()], tx)
     ///         .await
     ///         .unwrap();
     /// });
@@ -354,70 +358,49 @@ impl Stream {
             }
         });
 
-        // Get the first snapshot
-        let initial: Timed<LinearTickerDataSnapshot> = match rx.recv().await {
-            Some(ticker) => match ticker.data {
-                LinearTickerData::Snapshot(snapshot) => Timed {
-                    time: ticker.time,
-                    data: snapshot,
-                },
-                LinearTickerData::Delta(_) => {
-                    return Err(BybitError::Base(
-                        "First message was not a snapshot".to_owned(),
-                    ))
-                }
-            },
-            None => {
-                return Err(BybitError::Base(
-                    "Stream ended before receiving snapshot".to_owned(),
-                ))
-            }
-        };
+        // State to store snapshots for each symbol
+        let mut snapshots: HashMap<String, Timed<LinearTickerDataSnapshot>> = HashMap::new();
 
-        // Send the initial snapshot
-        if sender.send(initial.clone()).is_err() {
-            return Err(BybitError::Base(
-                "Failed to send initial snapshot".to_owned(),
-            ));
-        }
-
-        // Create a stream for deltas
+        // Process incoming messages
         let delta_stream = stream! {
             while let Some(ticker) = rx.recv().await {
                 match ticker.data {
-                    LinearTickerData::Snapshot(_) => {
-                        // Ignore unexpected snapshots
-                        continue;
+                    LinearTickerData::Snapshot(snapshot) => {
+                        let symbol = snapshot.symbol.clone(); // Assuming snapshot has a symbol field
+                        let timed_snapshot = Timed {
+                            time: ticker.time,
+                            data: snapshot,
+                        };
+                        // Store the snapshot and send it
+                        snapshots.insert(symbol.clone(), timed_snapshot.clone());
+                        let _ = sender.send(timed_snapshot);
                     }
-                    LinearTickerData::Delta(delta) => yield Timed {
-                        time: ticker.time,
-                        data: delta,
-                    },
+                    LinearTickerData::Delta(delta) => {
+                        let symbol = delta.symbol.clone(); // Assuming delta has a symbol field
+                        if let Some(acc) = snapshots.get_mut(&symbol) {
+                            let mut acc_ticker = acc.data.clone();
+                            acc_ticker.update(delta);
+                            let new = Timed {
+                                data: acc_ticker,
+                                time: ticker.time,
+                            };
+                            *acc = new.clone();
+                            let _ = sender.send(new);
+                        }
+                        // If no snapshot exists for the symbol, skip the delta
+                    }
                 }
             }
         };
 
-        // Pin the stream for scanning
+        // Pin the stream and process it
         let delta_stream = Box::pin(delta_stream);
 
-        // Use scan to update the snapshot with deltas
-        let result = delta_stream
-            .scan(initial, |acc, next| {
-                let mut acc_ticker = acc.data.clone();
-                acc_ticker.update(next.data);
-                let new = Timed {
-                    data: acc_ticker,
-                    time: next.time,
-                };
-                *acc = new.clone();
-                ready(Some(new))
-            })
-            .for_each(|item| async {
-                let _ = sender.send(item); // Ignore send errors to continue processing
-            })
+        delta_stream
+            .for_each(|_| async {}) // Consume the stream to keep it running
             .await;
 
-        Ok(result)
+        Ok(())
     }
 
     async fn _ws_tickers<T, F>(

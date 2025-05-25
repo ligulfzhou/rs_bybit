@@ -108,7 +108,7 @@ mod tests {
         let ws: Arc<Stream> = Arc::new(Bybit::new(None, None));
         let (tx, mut rx) = mpsc::unbounded_channel::<Timed<LinearTickerDataSnapshot>>();
         tokio::spawn(async move {
-            ws.ws_timed_linear_tickers(vec!["BTCUSDT".to_owned()], tx)
+            ws.ws_timed_linear_tickers(vec!["BTCUSDT".to_owned(), "ETHUSDT".to_owned()], tx)
                 .await
                 .unwrap();
         });
