@@ -2,6 +2,8 @@ use crate::prelude::*;
 
 use futures::{SinkExt, StreamExt};
 use log::trace;
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
@@ -265,7 +267,7 @@ impl Stream {
         category: Category,
         sender: mpsc::UnboundedSender<Ticker>,
     ) -> Result<(), BybitError> {
-        self._ws_tickers(subs, category, sender, |ws_ticker| ws_ticker.data)
+        self._ws_tickers(subs, category, sender, |ws_ticker| Some(ws_ticker.data))
             .await
     }
 
@@ -291,11 +293,114 @@ impl Stream {
         category: Category,
         sender: mpsc::UnboundedSender<Timed<Ticker>>,
     ) -> Result<(), BybitError> {
-        self._ws_tickers(subs, category, sender, |ticker| Timed {
-            time: ticker.ts,
-            data: ticker.data,
+        self._ws_tickers(subs, category, sender, |ticker| {
+            Some(Timed {
+                time: ticker.ts,
+                data: ticker.data,
+            })
         })
         .await
+    }
+
+    /// A high abstraction level stream of timed linear snapshots, which you can
+    /// subscribe to using the receiver of the sender. Internally this method
+    /// consumes the linear ticker API but instead of returning a stream of deltas
+    /// we update the initial snapshot with all subsequent streams, and thanks
+    /// to internally using `.scan` we you get `Timed<LinearTickerDataSnapshot>`,
+    /// instead of `Timed<LinearTickerDataDelta>`.
+    ///
+    /// If you provide multiple symbols, the `LinearTickerDataSnapshot` values
+    /// will be interleaved.
+    ///
+    /// # Usage
+    /// ```no_run
+    /// use bybit::prelude::*;
+    /// use tokio::sync::mpsc;
+    /// use std::sync::Arc;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///
+    /// let ws: Arc<Stream> = Arc::new(Bybit::new(None, None));
+    /// let (tx, mut rx) = mpsc::unbounded_channel::<Timed<LinearTickerDataSnapshot>>();
+    /// tokio::spawn(async move {
+    ///     ws.ws_timed_linear_tickers(vec!["BTCUSDT".to_owned(), "ETHUSDT".to_owned()], tx)
+    ///         .await
+    ///         .unwrap();
+    /// });
+    /// while let Some(ticker_snapshot) = rx.recv().await {
+    ///     println!("{:#?}", ticker_snapshot);
+    /// }
+    /// }
+    /// ```
+    pub async fn ws_timed_linear_tickers(
+        self: Arc<Self>,
+        subs: Vec<String>,
+        sender: mpsc::UnboundedSender<Timed<LinearTickerDataSnapshot>>,
+    ) -> Result<(), BybitError> {
+        let (tx, mut rx) = mpsc::unbounded_channel::<Timed<LinearTickerData>>();
+        // Spawn the WebSocket task
+        tokio::spawn({
+            let self_arc = Arc::clone(&self);
+            let subs = subs.clone();
+            async move {
+                self_arc
+                    ._ws_tickers(
+                        subs.iter().map(|s| s.as_str()).collect(),
+                        Category::Linear,
+                        tx,
+                        |ticker| match &ticker.data {
+                            Ticker::Linear(linear) => Some(Timed {
+                                time: ticker.ts,
+                                data: linear.clone(),
+                            }),
+                            Ticker::Spot(_) => None,
+                        },
+                    )
+                    .await
+            }
+        });
+
+        // State to store snapshots for each symbol
+        let mut snapshots: HashMap<String, Timed<LinearTickerDataSnapshot>> = HashMap::new();
+
+        // Process incoming messages
+        while let Some(ticker) = rx.recv().await {
+            match ticker.data {
+                LinearTickerData::Snapshot(snapshot) => {
+                    let symbol = snapshot.symbol.clone();
+                    let timed_snapshot = Timed {
+                        time: ticker.time,
+                        data: snapshot,
+                    };
+                    // Store the snapshot and send it
+                    snapshots.insert(symbol.clone(), timed_snapshot.clone());
+                    sender
+                        .send(timed_snapshot)
+                        .map_err(|e| BybitError::ChannelSendError {
+                            underlying: e.to_string(),
+                        })?
+                }
+                LinearTickerData::Delta(delta) => {
+                    let symbol = delta.symbol.clone();
+                    if let Some(snapshot_timed) = snapshots.get_mut(&symbol) {
+                        let mut snapshot = snapshot_timed.data.clone();
+                        snapshot.update(delta);
+                        let new = Timed {
+                            data: snapshot,
+                            time: ticker.time,
+                        };
+                        *snapshot_timed = new.clone();
+                        sender.send(new).map_err(|e| BybitError::ChannelSendError {
+                            underlying: e.to_string(),
+                        })?
+                    }
+                    // If no snapshot exists for the symbol, skip the delta
+                }
+            }
+        }
+
+        Ok(())
     }
 
     async fn _ws_tickers<T, F>(
@@ -303,11 +408,11 @@ impl Stream {
         subs: Vec<&str>,
         category: Category,
         sender: mpsc::UnboundedSender<T>,
-        map: F,
+        filter_map: F,
     ) -> Result<(), BybitError>
     where
         T: 'static + Sync + Send,
-        F: 'static + Sync + Send + Fn(WsTicker) -> T,
+        F: 'static + Sync + Send + Fn(WsTicker) -> Option<T>,
     {
         let arr: Vec<String> = subs
             .into_iter()
@@ -317,12 +422,13 @@ impl Stream {
 
         let handler = move |event| {
             if let WebsocketEvents::TickerEvent(ticker) = event {
-                let mapped = map(ticker);
-                sender
-                    .send(mapped)
-                    .map_err(|e| BybitError::ChannelSendError {
-                        underlying: e.to_string(),
-                    })?;
+                if let Some(mapped) = filter_map(ticker) {
+                    sender
+                        .send(mapped)
+                        .map_err(|e| BybitError::ChannelSendError {
+                            underlying: e.to_string(),
+                        })?;
+                }
             }
             Ok(())
         };
