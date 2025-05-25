@@ -313,7 +313,14 @@ impl Stream {
     /// will be interleaved.
     ///
     /// # Usage
-    /// ```
+    /// ```no_run
+    /// use bybit::prelude::*;
+    /// use tokio::sync::mpsc;
+    /// use std::sync::Arc;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///
     /// let ws: Arc<Stream> = Arc::new(Bybit::new(None, None));
     /// let (tx, mut rx) = mpsc::unbounded_channel::<Timed<LinearTickerDataSnapshot>>();
     /// tokio::spawn(async move {
@@ -323,6 +330,7 @@ impl Stream {
     /// });
     /// while let Some(ticker_snapshot) = rx.recv().await {
     ///     println!("{:#?}", ticker_snapshot);
+    /// }
     /// }
     /// ```
     pub async fn ws_timed_linear_tickers(
