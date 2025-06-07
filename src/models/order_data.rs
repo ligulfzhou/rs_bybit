@@ -61,7 +61,8 @@ pub struct OrderData {
     ///
     /// This field is typically used for options or volatility-based derivatives, not standard perpetual futures. It may be empty or unused in this context.
     /// For bots, this field is generally irrelevant unless dealing with Bybit's volatility products, which are less common.
-    pub order_iv: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub order_iv: Option<String>,
 
     /// Specifies how long the order remains active, e.g., "GTC" (Good Till Cancel), "IOC" (Immediate or Cancel).
     ///
@@ -80,7 +81,8 @@ pub struct OrderData {
     ///
     /// This allows bots to attach metadata to orders for internal tracking, such as strategy IDs or batch identifiers. It’s particularly useful in high-frequency trading to correlate orders with specific algorithms or events (https://bybit-exchange.github.io/docs/v5/order/create-order).
     /// **Bot Implication**: Using meaningful `order_link_id` values can streamline reconciliation and debugging, especially when handling thousands of orders daily.
-    pub order_link_id: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub order_link_id: Option<String>,
 
     /// The market price of the symbol when the order was created.
     ///
@@ -99,22 +101,22 @@ pub struct OrderData {
     ///
     /// For partially filled orders, this field tracks how much of the original `qty` remains open. In perpetual futures, partial fills are common due to market liquidity constraints (https://bybit-exchange.github.io/docs/v5/order/order-list).
     /// **Bot Implication**: Bots need to monitor `leaves_qty` to decide whether to cancel the remaining order, adjust the price, or wait for further execution, balancing execution risk with market exposure.
-    #[serde(with = "string_to_float")]
-    pub leaves_qty: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub leaves_qty: Option<f64>,
 
     /// The remaining value of the order, calculated as `leaves_qty` multiplied by the order price.
     ///
     /// This provides the monetary value of the unfilled portion of the order, useful for assessing exposure in USDT or the quote currency.
     /// **Bot Implication**: Bots use `leaves_value` to quantify the capital tied up in open orders, aiding in capital allocation and risk management.
-    #[serde(with = "string_to_float")]
-    pub leaves_value: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub leaves_value: Option<f64>,
 
     /// The total quantity executed so far for this order.
     ///
     /// This tracks the cumulative filled portion of the order, critical for monitoring progress toward full execution (https://bybit-exchange.github.io/docs/v5/order/order-list).
     /// **Bot Implication**: Bots use `cum_exec_qty` to calculate position size, update risk models, and determine whether additional orders are needed to achieve the desired exposure.
-    #[serde(with = "string_to_float")]
-    pub cum_exec_qty: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub cum_exec_qty: Option<f64>,
 
     /// The total monetary value of the executed portion, calculated as `cum_exec_qty` multiplied by the average execution price.
     ///
@@ -127,14 +129,15 @@ pub struct OrderData {
     ///
     /// This is calculated as the total value of executed trades divided by `cum_exec_qty`. It provides a weighted average execution price, reflecting market conditions during filling (https://bybit-exchange.github.io/docs/v5/order/order-list).
     /// **Bot Implication**: Bots use `avg_price` to evaluate trade execution quality, compare it to `last_price_on_created`, and adjust strategies to minimize slippage in future orders.
-    #[serde(with = "string_to_float")]
-    pub avg_price: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub avg_price: Option<f64>,
 
     /// Identifier for a block trade, if applicable.
     ///
     /// Block trades are large, negotiated trades executed outside the public order book, often used by institutional traders. This field is typically empty for retail bots (https://bybit-exchange.github.io/docs/v5/trade/block-trade).
     /// **Bot Implication**: For most retail bots, this field is unused, but large-scale bots may use it to track high-value trades separately for reporting or compliance.
-    pub block_trade_id: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub block_trade_id: Option<String>,
 
     /// Index indicating the position direction, e.g., 0 for one-way mode, 1 for buy-side hedge, 2 for sell-side hedge.
     ///
@@ -147,8 +150,8 @@ pub struct OrderData {
     ///
     /// Fees in perpetual futures include maker/taker fees, which impact profitability. Bybit’s fee structure varies by VIP level and order type (https://bybit-exchange.github.io/docs/v5/account/fee).
     /// **Bot Implication**: Bots must track `cum_exec_fee` to optimize order types (e.g., maker vs. taker) and account for fees in profitability calculations, as high-frequency trading can accumulate significant costs.
-    #[serde(with = "string_to_float")]
-    pub cum_exec_fee: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub cum_exec_fee: Option<f64>,
 
     /// Timestamp when the order was created, in milliseconds since Unix epoch.
     ///
@@ -174,64 +177,64 @@ pub struct OrderData {
     ///
     /// Stop orders in perpetual futures are conditional orders triggered by price movements, used for risk management (https://bybit-exchange.github.io/docs/v5/order/stop-order).
     /// **Bot Implication**: Bots use `stop_order_type` to implement automated stop-loss or trailing stops, critical for limiting losses in leveraged positions.
-    #[serde(rename = "stopOrderType")]
-    pub stop_order_type: String,
+    #[serde(rename = "stopOrderType", deserialize_with = "empty_string_as_none")]
+    pub stop_order_type: Option<String>,
 
     /// Take-profit/stop-loss mode, e.g., "Full", "Partial".
     ///
     /// This defines how take-profit and stop-loss orders are applied in Bybit’s unified margin account, either to the full position or a portion (https://bybit-exchange.github.io/docs/v5/order/tpsl-mode).
     /// **Bot Implication**: Bots must configure `tpsl_mode` to align with risk management strategies, ensuring partial or full position exits as intended.
-    #[serde(rename = "tpslMode")]
-    pub tpsl_mode: String,
+    #[serde(rename = "tpslMode", deserialize_with = "empty_string_as_none")]
+    pub tpsl_mode: Option<String>,
 
     /// Price level that triggers a stop order.
     ///
     /// In perpetual futures, the trigger price determines when a stop-loss or other conditional order activates (https://bybit-exchange.github.io/docs/v5/order/stop-order).
     /// **Bot Implication**: Bots set `trigger_price` to automate risk controls, ensuring timely exits from losing positions to prevent margin calls or liquidations.
-    #[serde(with = "string_to_float")]
-    pub trigger_price: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub trigger_price: Option<f64>,
 
     /// Price level at which a take-profit order is triggered.
     ///
     /// Take-profit orders lock in gains by closing a position when the market reaches a favorable price (https://bybit-exchange.github.io/docs/v5/order/tpsl-order).
     /// **Bot Implication**: Bots use `take_profit` to secure profits automatically, balancing the trade-off between capturing gains and allowing room for further upside.
-    #[serde(with = "string_to_float")]
-    pub take_profit: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub take_profit: Option<f64>,
 
     /// Price level at which a stop-loss order is triggered.
     ///
     /// Stop-loss orders limit losses by closing a position when the market moves against it (https://bybit-exchange.github.io/docs/v5/order/tpsl-order).
     /// **Bot Implication**: Bots set `stop_loss` to cap downside risk, a critical feature for leveraged perpetual futures where losses can exceed initial margin.
-    #[serde(with = "string_to_float")]
-    pub stop_loss: f64,
+    #[serde(with = "string_to_float_optional")]
+    pub stop_loss: Option<f64>,
 
     /// Specifies the price type that triggers the take-profit order, e.g., "LastPrice", "IndexPrice".
     ///
     /// Bybit allows different price feeds for triggering orders, affecting how take-profit is calculated (https://bybit-exchange.github.io/docs/v5/order/tpsl-order).
     /// **Bot Implication**: Bots must select the appropriate `tp_trigger_by` to align with strategy logic, as different price types can lead to varying trigger points.
-    #[serde(rename = "tpTriggerBy")]
-    pub tp_trigger_by: String,
+    #[serde(rename = "tpTriggerBy", deserialize_with = "empty_string_as_none")]
+    pub tp_trigger_by: Option<String>,
 
     /// Specifies the price type that triggers the stop-loss order, e.g., "LastPrice", "IndexPrice".
     ///
     /// Similar to `tp_trigger_by`, this determines the reference price for stop-loss activation (https://bybit-exchange.github.io/docs/v5/order/tpsl-order).
     /// **Bot Implication**: Bots need to choose `sl_trigger_by` carefully, as price feed discrepancies can cause premature or delayed stop-loss triggers.
-    #[serde(rename = "slTriggerBy")]
-    pub sl_trigger_by: String,
+    #[serde(rename = "slTriggerBy", deserialize_with = "empty_string_as_none")]
+    pub sl_trigger_by: Option<String>,
 
     /// Limit price for the take-profit order, if applicable.
     ///
     /// This specifies the exact price at which the take-profit order executes once triggered, allowing precise profit capture (https://bybit-exchange.github.io/docs/v5/order/tpsl-order).
     /// **Bot Implication**: Bots use `tp_limit_price` to minimize slippage on take-profit execution, ensuring profits are locked in at the desired level.
-    #[serde(rename = "tpLimitPrice", with = "string_to_float")]
-    pub tp_limit_price: f64,
+    #[serde(rename = "tpLimitPrice", with = "string_to_float_optional")]
+    pub tp_limit_price: Option<f64>,
 
     /// Limit price for the stop-loss order, if applicable.
     ///
     /// This sets the execution price for the stop-loss order once triggered, controlling the exit price in adverse market moves (https://bybit-exchange.github.io/docs/v5/order/tpsl-order).
     /// **Bot Implication**: Bots set `sl_limit_price` to balance loss minimization with the risk of slippage, especially in fast-moving markets.
-    #[serde(rename = "slLimitPrice", with = "string_to_float")]
-    pub sl_limit_price: f64,
+    #[serde(rename = "slLimitPrice", with = "string_to_float_optional")]
+    pub sl_limit_price: Option<f64>,
 
     /// Direction of the price movement that triggers the order, e.g., 1 for rising price, 2 for falling price.
     ///
@@ -243,7 +246,8 @@ pub struct OrderData {
     ///
     /// Similar to `tp_trigger_by` and `sl_trigger_by`, this specifies the reference price for conditional orders (https://bybit-exchange.github.io/docs/v5/order/stop-order).
     /// **Bot Implication**: Bots need to ensure `trigger_by` matches the strategy’s price feed to avoid discrepancies in trigger timing.
-    pub trigger_by: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub trigger_by: Option<String>,
 
     /// Indicates if the order closes the position when triggered.
     ///
@@ -279,11 +283,13 @@ pub struct OrderData {
     ///
     /// This links the order to its counterpart in an SMP event, aiding in audit trails (https://bybit-exchange.github.io/docs/v5/order/smp).
     /// **Bot Implication**: Bots use `smp_order_id` for reconciliation and compliance reporting, ensuring transparency in SMP events.
-    pub smp_order_id: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub smp_order_id: Option<String>,
 
     /// The currency used for fees, e.g., "USDT".
     ///
     /// This specifies the currency in which trading fees are charged, impacting cost calculations (https://bybit-exchange.github.io/docs/v5/account/fee).
     /// **Bot Implication**: Bots must account for `fee_currency` in profitability models, as fees in volatile currencies like USDT can affect net returns.
-    pub fee_currency: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub fee_currency: Option<String>,
 }
