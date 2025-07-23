@@ -65,7 +65,7 @@ impl Client {
         request: Option<String>,
     ) -> Result<T, BybitError> {
         // Construct the full URL
-        let mut url = format!("{}/{}", self.host, endpoint.as_ref());
+        let mut url = format!("{}{}", self.host, endpoint.as_ref());
         // If there is a query string, append it to the URL
         if let Some(request) = request {
             if !request.is_empty() {
@@ -99,7 +99,7 @@ impl Client {
         request: Option<String>,
     ) -> Result<T, BybitError> {
         // Construct the full URL
-        let mut url: String = format!("{}/{}", self.host, endpoint.as_ref());
+        let mut url: String = format!("{}{}", self.host, endpoint.as_ref());
         // If there is a query string, append it to the URL
         let query_string = request.unwrap_or_default();
         if !query_string.is_empty() {
@@ -136,7 +136,7 @@ impl Client {
         request: Option<String>,
     ) -> Result<T, BybitError> {
         // Construct the URL by appending the base host and endpoint to it
-        let mut url: String = format!("{}/{}", self.host, endpoint.as_ref());
+        let mut url: String = format!("{}{}", self.host, endpoint.as_ref());
 
         // If a request is provided, append it to the URL as a query string
         if let Some(request) = request {
