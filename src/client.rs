@@ -39,15 +39,9 @@ impl Client {
         // Create a new instance of `Client` with the provided arguments.
         Client {
             // Set the API key. If `api_key` is `None`, set it to an empty string.
-            api_key: match api_key {
-                Some(api_key) => api_key,
-                None => "".into(),
-            },
+            api_key: api_key.unwrap_or_else(|| "".into()),
             // Set the secret key. If `secret_key` is `None`, set it to an empty string.
-            secret_key: match secret_key {
-                Some(secret_key) => secret_key,
-                None => "".into(),
-            },
+            secret_key: secret_key.unwrap_or_else(|| "".into()),
             // Set the host.
             host,
             // Set the reqwest client.
@@ -80,6 +74,7 @@ impl Client {
             }
         }
 
+        println!("GET {}", &url);
         // Make the request using the reqwest client
         let response = self.inner_client.get(url).send().await?;
         // Handle the response using the `handler` method
@@ -111,6 +106,7 @@ impl Client {
             url.push_str(format!("?{}", query_string).as_str());
         }
 
+        println!("GET {}", &url);
         // Sign the request, passing the query string for signature
         // The request is signed with the API secret key and requires
         // the `recv_window` for the request to be within the specified timeframe.
@@ -149,6 +145,7 @@ impl Client {
             }
         }
 
+        println!("POST {}", &url);
         // Get a reference to the inner client
         let client = &self.inner_client;
 
@@ -185,6 +182,7 @@ impl Client {
         let headers =
             self.build_signed_headers(true, true, recv_window, raw_request_body.clone())?;
 
+        println!("POST {}", &url);
         // Make the signed HTTP POST request
         let client = &self.inner_client;
         let response = client
