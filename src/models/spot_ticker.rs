@@ -78,8 +78,5 @@ pub struct SpotTicker {
     pub volume_24h: f64,
 
     /// The USD index price.
-    ///
-    /// The spot price of the asset in USD. Not relevant for perpetuals.
-    #[serde(with = "string_to_float")]
-    pub usd_index_price: f64,
+    pub usd_index_price: Option<String>,
 }
