@@ -45,8 +45,9 @@ pub struct FuturesInstrument {
     /// The delivery fee rate for non-perpetual futures.
     ///
     /// For perpetual futures, this is typically empty or irrelevant since there’s no delivery. Bots can ignore this unless trading quarterly futures.
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub delivery_fee_rate: Option<f64>,
+    // #[serde(deserialize_with = "empty_string_as_none")]
+    // pub delivery_fee_rate: Option<f64>,
+    pub delivery_fee_rate: Option<String>,
 
     /// The price scale (number of decimal places for price).
     ///

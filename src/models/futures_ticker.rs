@@ -109,7 +109,7 @@ pub struct FuturesTicker {
     /// The delivery fee rate (empty for perpetuals).
     ///
     /// For perpetual futures, this is typically empty. Bots can ignore this.
-    pub delivery_fee_rate: String,
+    pub delivery_fee_rate: Option<String>,
 
     /// The delivery time (empty for perpetuals).
     ///
