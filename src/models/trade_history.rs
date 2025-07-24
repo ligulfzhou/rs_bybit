@@ -20,13 +20,13 @@ pub struct TradeHistory {
     ///
     /// For derivatives, this may represent the price of the underlying asset. Often empty for perpetual futures. Bots can ignore this unless analyzing specific derivative products.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub underlying_price: String,
+    pub underlying_price: Option<String>,
 
     /// The user-defined order link ID (optional).
     ///
     /// A custom identifier for the order. Bots can use this to correlate trades with specific strategies or client orders.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub order_link_id: String,
+    pub order_link_id: Option<String>,
 
     /// The trade side ("Buy" or "Sell").
     ///
@@ -37,7 +37,7 @@ pub struct TradeHistory {
     ///
     /// The index price of the asset at the time of execution, used for mark-to-market calculations in perpetual futures. Often empty in some responses. Bots can use this for P&L calculations if available.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub index_price: String,
+    pub index_price: Option<String>,
 
     /// The unique order ID.
     ///
@@ -63,7 +63,7 @@ pub struct TradeHistory {
     ///
     /// Specifies the currency in which fees were charged (e.g., "USDT"). Bots use this to calculate net profitability.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub fee_currency: String,
+    pub fee_currency: Option<String>,
 
     /// Indicates if the trade was executed as a maker.
     ///
@@ -90,13 +90,13 @@ pub struct TradeHistory {
     ///
     /// Relevant for options trading, typically empty for perpetual futures. Bots can ignore this unless trading options.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub trade_iv: String,
+    pub trade_iv: Option<String>,
 
     /// The block trade ID (optional).
     ///
     /// Identifies if the trade was a block trade, executed off the public order book. Bots can use this to detect large institutional trades.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub block_trade_id: String,
+    pub block_trade_id: Option<String>,
 
     /// The mark price at execution.
     ///
@@ -114,7 +114,7 @@ pub struct TradeHistory {
     ///
     /// Relevant for options, typically empty for perpetual futures. Bots can ignore this field.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub mark_iv: String,
+    pub mark_iv: Option<String>,
 
     /// The total order quantity.
     ///
@@ -153,7 +153,7 @@ pub struct TradeHistory {
         default,
         skip_serializing_if = "String::is_empty"
     )]
-    pub closed_size: String,
+    pub closed_size: Option<String>,
 
     /// The sequence number of the trade.
     ///

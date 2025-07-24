@@ -20,5 +20,5 @@ pub struct FuturesInstrumentsInfo {
     ///
     /// Indicates the next page of results for large datasets. Bots should use this for paginated requests to fetch all instruments when `limit` is reached.
     #[serde(skip_serializing_if = "String::is_empty")]
-    pub next_page_cursor: String,
+    pub next_page_cursor: Option<String>,
 }

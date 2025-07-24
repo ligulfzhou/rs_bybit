@@ -101,7 +101,7 @@ pub struct Order {
 
     /// this is an empty string.
     #[serde(skip_serializing_if = "String::is_empty")]
-    pub is_leverage: String,
+    pub is_leverage: Option<String>,
 
     /// The position index (0 for one-way, 1 or 2 for hedge mode).
     ///
@@ -397,7 +397,7 @@ pub struct Order {
     /// strategies like scaling out. Bots should verify this field to confirm exit
     /// strategy alignment and adjust TP/SL settings accordingly.
     #[serde(skip_serializing_if = "String::is_empty")]
-    pub tpsl_mode: String,
+    pub tpsl_mode: Option<String>,
 
     /// The limit price for take-profit orders (optional).
     ///

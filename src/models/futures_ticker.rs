@@ -98,13 +98,13 @@ pub struct FuturesTicker {
     ///
     /// For perpetual futures, this is typically empty since there’s no delivery. Bots can ignore this.
     #[serde(skip_serializing_if = "String::is_empty")]
-    pub predicted_delivery_price: String,
+    pub predicted_delivery_price: Option<String>,
 
     /// The basis rate (empty for perpetuals).
     ///
     /// For perpetual futures, this is typically empty. Bots can ignore this.
     #[serde(skip_serializing_if = "String::is_empty")]
-    pub basis_rate: String,
+    pub basis_rate: Option<String>,
 
     /// The delivery fee rate (empty for perpetuals).
     ///
@@ -145,5 +145,5 @@ pub struct FuturesTicker {
     ///
     /// For perpetual futures, this is typically empty. Bots can ignore this.
     #[serde(skip_serializing_if = "String::is_empty")]
-    pub basis: String,
+    pub basis: Option<String>,
 }
