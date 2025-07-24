@@ -9,7 +9,7 @@ pub struct TradeHistorySummary {
     /// The cursor for pagination.
     ///
     /// Indicates the next page of results for large datasets. Bots should use this for paginated requests to fetch additional trade history when `limit` is reached.
-    #[serde(skip_serializing_if = "String::is_empty")]
+    // #[serde(skip_serializing_if = "String::is_empty")]
     pub next_page_cursor: Option<String>,
 
     /// The product category (e.g., "linear").

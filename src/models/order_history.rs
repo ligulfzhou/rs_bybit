@@ -26,6 +26,6 @@ pub struct OrderHistory {
     /// Used for pagination when the query returns more orders than the `limit`. Bots
     /// should include this in subsequent requests to retrieve additional orders in
     /// perpetual futures trading.
-    #[serde(skip_serializing_if = "String::is_empty")]
+    // #[serde(skip_serializing_if = "String::is_empty")]
     pub next_page_cursor: Option<String>,
 }
